@@ -1,6 +1,6 @@
 app:
   name: ${APP_NAME:LLM Guard API}
-  log_level: ${LOG_LEVEL:INFO}
+  log_level: ${LOG_LEVEL:DEBUG}
   log_json: ${LOG_JSON:true}
   scan_fail_fast: ${SCAN_FAIL_FAST:false}
   scan_prompt_timeout: ${SCAN_PROMPT_TIMEOUT:30}
@@ -8,7 +8,7 @@ app:
   lazy_load: ${LAZY_LOAD:true}
 
 rate_limit:
-  enabled: ${RATE_LIMIT_ENABLED:false}
+  enabled: ${RATE_LIMIT_ENABLED:true}
   limit: ${RATE_LIMIT_LIMIT:100/minute}
 
 auth:
@@ -29,7 +29,7 @@ input_scanners:
     params:
       use_faker: false
       threshold: 0.75
-      # model_path: "./distilbert_finetuned_ai4privacy_v2"
+      model_path: "./distilbert_finetuned_ai4privacy_v2"
   - type: BanCode
     params:
       threshold: 0.97
