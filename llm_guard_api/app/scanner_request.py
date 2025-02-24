@@ -38,7 +38,7 @@ class BanTopicsRequest(BaseModel):
         threshold (float): The risk threshold for classification.
     """
     prompt: str
-    topics: list[str] = ["violence"]  # Default sensitive topic
+    # topics: list[str] = ["violence"]  # Default sensitive topic
     threshold: float = 0.5  # Default risk threshold
 
 class BanTopicsOutputRequest(BaseModel):

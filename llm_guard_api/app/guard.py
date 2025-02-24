@@ -46,8 +46,19 @@ bansubstr_scanner = BanSubstrings(
 )
 
 scanner = BanCompetitors(competitors=competitor_list, redact=False, threshold=0.5)
+banned_topics = [
+    "Violence", "Hate Speech", "Drugs", "Explicit Content", "Terrorism",
+    "Pornography", "Child Abuse", "Racism", "Sexism", "Cyberbullying", 
+    "Self-Harm", "Discrimination", "Gambling", "Weaponry", "Fraud", 
+    "Abortion", "COVID-19 Misinformation", "Animal Cruelty", "Political Extremism", 
+    "Extremist Ideologies"
+]
 
-# Input Scanner Endpoint
+
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 @app.post('/ban-topics', tags=["Ban Topics"])
 async def ban_topics(request: BanTopicsRequest):
     """
@@ -55,45 +66,57 @@ async def ban_topics(request: BanTopicsRequest):
     Returns a success message and risk score if valid.
     """
     prompt = request.prompt
-    topics = request.topics
     threshold = request.threshold
     
     if not prompt:
         raise HTTPException(status_code=400, detail="No prompt provided")
     
-    scanner = BanTopics(topics=topics, threshold=threshold)
+    # Create the BanTopics scanner with predefined topics
+    banned_topics = ["violence"]  # Define your list of banned topics (this can be adjusted)
+    scanner = BanTopics(topics=banned_topics, threshold=threshold)
+    
+    try:
+        # Use the scanner to scan the prompt
+        sanitized_prompt, is_valid, risk_score = scanner.scan(prompt)
+    except Exception as e:
+        logger.error(f"Error during scanning: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error during topic scan")
+    
+    if not is_valid:
+        logger.error("Prompt contains banned topics")
+        raise HTTPException(status_code=400, detail="Prompt contains banned topics")
+    
+    logger.info("Prompt sanitized successfully")
+    return {"message": "Prompt sanitized successfully", "risk_score": risk_score}
+
+
+# Output Scanner Endpoint
+@app.post('/ban-topics-output', tags=["Ban Topics"])
+async def ban_topics(request: BanTopicsRequest):
+    """
+    Scans the input prompt for banned topics using a zero-shot classifier.
+    Returns a success message and risk score if valid.
+    """
+    prompt = request.prompt
+    threshold = request.threshold
+    
+    if not prompt:
+        raise HTTPException(status_code=400, detail="No prompt provided")
+    
+    # Check for banned topics in the prompt
+    found_topics = [topic for topic in banned_topics if topic in prompt]
+    
+    if found_topics:
+        raise HTTPException(status_code=400, detail=f"Prompt contains banned topics: {', '.join(found_topics)}")
+    
+    # Initialize the scanner (using predefined banned topics and the provided threshold)
+    scanner = BanTopics(topics=banned_topics, threshold=threshold)
     sanitized_prompt, is_valid, risk_score = scanner.scan(prompt)
     
     if not is_valid:
         raise HTTPException(status_code=400, detail="Prompt contains banned topics")
     
     return {"message": "Prompt sanitized successfully", "risk_score": risk_score}
-
-# Output Scanner Endpoint
-@app.post('/ban-topics-output', tags=["Ban Topics"])
-async def ban_topics_output(request: BanTopicsOutputRequest):
-    """
-    Scans the generated model output for banned topics using a zero-shot classifier.
-    Returns a success message and risk score if valid.
-    """
-    prompt = request.prompt
-    model_output = request.model_output
-    topics = request.topics
-    threshold = request.threshold
-    
-    if not prompt or not model_output:
-        raise HTTPException(status_code=400, detail="Prompt or model output not provided")
-
-    scanner = BanTopics(topics=topics, threshold=threshold)
-    sanitized_output, is_valid, risk_score = scanner.scan(prompt, model_output)
-
-    if not is_valid:
-        raise HTTPException(status_code=400, detail="Output contains banned topics")
-
-    return {
-        "message": "Output sanitized successfully",
-        "risk_score": risk_score
-    }
 
 @app.post('/anonymize', tags=["Anonymization"])
 async def anonymize(request: AnonymizeRequest):
@@ -193,14 +216,10 @@ async def ban_code(request: CodeScanRequest):
     """
     Scans both input prompt and model output for code snippets in specific languages
     and blocks them if they are present.
-
     Args:
-        request (CodeScanRequest): The request object containing prompt, model output,
-                                    and a list of banned languages.
-
+        request (CodeScanRequest): The request object containing prompt, model output, and a list of banned languages.
     Returns:
         dict: A response with success message, risk score, and sanitized output.
-
     Raises:
         HTTPException: If the model output contains banned code snippets.
     """
@@ -211,16 +230,10 @@ async def ban_code(request: CodeScanRequest):
 
     if not prompt or not model_output:
         raise HTTPException(status_code=400, detail="Prompt or model output not provided")
-
-    # Initialize the Code scanner with the specified languages and blocking configuration
     scanner = Code(languages=languages, is_blocked=is_blocked)
-
-    # Scan both the prompt and model output for code snippets in the banned languages
     sanitized_output, is_valid, risk_score = scanner.scan(prompt, model_output)
-
     if not is_valid:
         raise HTTPException(status_code=400, detail="Model output contains banned code snippets")
-
     return {
         "sanitized_output": sanitized_output,
         "message": "Model output sanitized successfully",
@@ -231,23 +244,16 @@ async def ban_code(request: CodeScanRequest):
 async def scan_competitors(request: BaseModel):
     prompt = request.dict().get("prompt")
     output = request.dict().get("output")
-
     if not prompt or not output:
         raise HTTPException(status_code=400, detail="Prompt and output are required")
-
     try:
-        # Initialize the BanCompetitors scanner
         scanner = BanCompetitors(competitors=competitor_list, redact=False, threshold=0.5)
-
-        # Perform the scan
         sanitized_output, is_valid, risk_score = scanner.scan(prompt, output)
-
         return {
             "sanitized_output": sanitized_output,
             "is_valid": is_valid,
             "risk_score": risk_score
         }
-
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -255,18 +261,13 @@ async def scan_competitors(request: BaseModel):
 @app.post("/scan_competitors", tags=["Competitors"])
 async def scan_prompt(request: PromptRequest):
     prompt = request.prompt
-    
     try:
-        # Perform the scan
         sanitized_prompt, is_valid, risk_score = scanner.scan(prompt)
-        
-        # Return the response as a JSON object
         return {
             "sanitized_prompt": sanitized_prompt,
             "is_valid": is_valid,
             "risk_score": risk_score
         }
-    
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -275,14 +276,10 @@ async def ban_competitors(request: CompetitorScanRequest):
     """
     Scans both input prompt and model output for mentions of competitors.
     The function will flag or redact any references to competitors based on user preference.
-    
     Args:
-        request (CompetitorScanRequest): The request body containing prompt, model output, 
-                                          competitors list, redact flag, and threshold.
-    
+        request (CompetitorScanRequest): The request body containing prompt, model output, competitors list, redact flag, and threshold.
     Returns:
         dict: A response with sanitized model output, risk score, and success message.
-
     Raises:
         HTTPException: If the model output contains competitors' names.
     """
@@ -291,19 +288,12 @@ async def ban_competitors(request: CompetitorScanRequest):
     competitors = request.competitors
     redact = request.redact
     threshold = request.threshold
-
     if not prompt or not model_output:
         raise HTTPException(status_code=400, detail="Prompt or model output not provided")
-
-    # Initialize the BanCompetitors scanner with provided list of competitors and redact flag
     scanner = BanCompetitors(competitors=competitors, redact=redact, threshold=threshold)
-
-    # Scan both the prompt and model output for competitor mentions
     sanitized_output, is_valid, risk_score = scanner.scan(prompt, model_output)
-
     if not is_valid:
         raise HTTPException(status_code=400, detail="Model output contains competitors' names")
-
     return {
         "sanitized_output": sanitized_output,
         "message": "Model output sanitized successfully",
@@ -328,14 +318,10 @@ async def ban_substrings(request: BanSubstringsScanRequest):
     """
     Scans both the input prompt and model output for mentions of banned substrings.
     The function will flag or redact any matches based on user configuration.
-    
     Args:
-        request (BanSubstringsScanRequest): The request body containing prompt, model output, 
-                                             substrings list, match type, redact flag, and other settings.
-    
+        request (BanSubstringsScanRequest): The request body containing prompt, model output, substrings list, match type, redact flag, and other settings.
     Returns:
         dict: A response with sanitized model output, risk score, and success message.
-
     Raises:
         HTTPException: If the model output contains any banned substrings.
     """
@@ -346,11 +332,8 @@ async def ban_substrings(request: BanSubstringsScanRequest):
     case_sensitive = request.case_sensitive
     redact = request.redact
     contains_all = request.contains_all
-
     if not prompt or not model_output:
         raise HTTPException(status_code=400, detail="Prompt or model output not provided")
-
-    # Initialize the BanSubstrings scanner with provided configuration
     scanner = BanSubstrings(
         substrings=substrings,
         match_type=match_type,
@@ -358,13 +341,9 @@ async def ban_substrings(request: BanSubstringsScanRequest):
         redact=redact,
         contains_all=contains_all
     )
-
-    # Scan the model output for banned substrings
     sanitized_output, is_valid, risk_score = scanner.scan(prompt, model_output)
-
     if not is_valid:
         raise HTTPException(status_code=400, detail="Model output contains banned substrings")
-
     return {
         "sanitized_output": sanitized_output,
         "message": "Model output sanitized successfully",
