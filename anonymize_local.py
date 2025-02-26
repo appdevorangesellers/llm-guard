@@ -11,7 +11,7 @@ from llm_guard.input_scanners import (
 )
 from llm_guard.input_scanners.anonymize_helpers import DEBERTA_AI4PRIVACY_v2_CONF
 # from llm_guard.input_scanners.ban_competitors import MODEL_BASE as BAN_COMPETITORS_MODEL
-# from llm_guard.input_scanners.ban_topics import MODEL_DEBERTA_BASE_V2 as BAN_TOPICS_MODEL
+from llm_guard.input_scanners.ban_topics import MODEL_DEBERTA_BASE_V2 as BAN_TOPICS_MODEL
 # from llm_guard.input_scanners.code import DEFAULT_MODEL as CODE_MODEL
 # from llm_guard.input_scanners.gibberish import DEFAULT_MODEL as GIBBERISH_MODEL
 # from llm_guard.input_scanners.language import DEFAULT_MODEL as LANGUAGE_MODEL
@@ -25,8 +25,8 @@ from llm_guard.vault import Vault
 DEBERTA_AI4PRIVACY_v2_CONF["DEFAULT_MODEL"].path = "./llm-guard/models/distilbert_finetuned_ai4privacy_v2" # calling from root folder
 DEBERTA_AI4PRIVACY_v2_CONF["DEFAULT_MODEL"].kwargs["local_files_only"] = True
 
-# BAN_TOPICS_MODEL.path = "./deberta-v3-base-zeroshot-v1.1-all-33"
-# BAN_TOPICS_MODEL.kwargs["local_files_only"] = True
+BAN_TOPICS_MODEL.path = "./llm-guard/models/deberta-v3-base-zeroshot-v1.1-all-33"
+BAN_TOPICS_MODEL.kwargs["local_files_only"] = True
 
 # TOXICITY_MODEL.path = "./unbiased-toxic-roberta"
 # TOXICITY_MODEL.kwargs["local_files_only"] = True
@@ -44,13 +44,21 @@ DEBERTA_AI4PRIVACY_v2_CONF["DEFAULT_MODEL"].kwargs["local_files_only"] = True
 # LANGUAGE_MODEL.kwargs["local_files_only"] = True
 
 vault = Vault()
+
 input_scanners = [
     Anonymize(vault, recognizer_conf=DEBERTA_AI4PRIVACY_v2_CONF),
+    BanTopics(["politics", "religion"], model=BAN_TOPICS_MODEL),
+    # BanCompetitors(["google", "facebook"], model=BAN_COMPETITORS_MODEL),
+    # Toxicity(model=TOXICITY_MODEL),
+    # Code(["Python", "PHP"], model=CODE_MODEL),
+    # Gibberish(model=GIBBERISH_MODEL),
+    # Language(["en"], model=LANGUAGE_MODEL),
+    # PromptInjection(model=PROMPT_INJECTION_MODEL),
 ]
 
 sanitized_prompt, results_valid, results_score = scan_prompt(
     input_scanners,
-    "I am happy",
+    "I am happy. Buddism is my choice.",
 )
 
 print(sanitized_prompt)
